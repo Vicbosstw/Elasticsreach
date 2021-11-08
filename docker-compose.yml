@@ -1,0 +1,94 @@
+version: '2.2'
+services:
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
+    restart: on-failure
+    container_name: es01
+    environment:
+      - node.name=es01
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es02
+      - cluster.initial_master_nodes=es01,es02
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data01:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - elastic
+  es02:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
+    container_name: es02
+    restart: on-failure
+    environment:
+      - node.name=es02
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01
+      - cluster.initial_master_nodes=es01,es02
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data02:/usr/share/elasticsearch/data
+    ports:
+      - 9201:9200
+    networks:
+      - elastic
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.14.1
+    container_name: kibana
+    restart: on-failure
+    volumes:
+      - ./kibana.yml:/usr/share/kibana/config/kibana.yml
+      - ./zh-TW.json:/usr/share/kibana/x-pack/plugins/translations/translations/zh-TW.json
+      - ./zh-CN.json:/usr/share/kibana/x-pack/plugins/translations/translations/zh-CN.json
+    networks:
+      - elastic
+    ports:
+      - 5601:5601
+    depends_on:
+      - es01
+  # head:
+  #   image: docker.io/mobz/elasticsearch-head:5
+  #   container_name: head
+  #   restart: on-failure
+  #   networks:
+  #     - elastic
+  #   ports:
+  #     - 9100:9100
+  #   depends_on:
+  #     - es01
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.14.1
+    container_name: logstash
+    restart: on-failure
+    volumes:
+      - ./logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.yml
+    networks:
+      - elastic
+    ports:
+      - "5044:5044"
+      - "5000:5000"
+      - "9600:9600"
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+    depends_on:
+      - es01
+volumes:
+  data01:
+    driver: local
+  data02:
+    driver: local
+
+networks:
+  elastic:
+    driver: bridge
